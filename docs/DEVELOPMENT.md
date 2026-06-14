@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Node ≥ 20**, **pnpm ≥ 9** (`npm i -g pnpm`)
+- **Node ≥ 22**, **pnpm ≥ 9** (`npm i -g pnpm`)
 - **Rust stable** via [rustup](https://rustup.rs)
 - macOS: Xcode Command Line Tools — `xcode-select --install`
 - Windows: Visual Studio Build Tools (C++), and [WebView2](https://developer.microsoft.com/microsoft-edge/webview2/) (preinstalled on Win 11)

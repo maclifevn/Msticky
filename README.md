@@ -24,7 +24,7 @@ services/sync-worker Cloudflare Worker + Durable Object + D1
 
 ## Prerequisites
 
-- Node ≥ 20, pnpm ≥ 9
+- Node ≥ 22, pnpm ≥ 9
 - Rust stable (`rustup`) — required to compile the Tauri app
 - macOS: Xcode Command Line Tools. Windows: MSVC build tools + WebView2.
 - `wrangler` for the sync worker
