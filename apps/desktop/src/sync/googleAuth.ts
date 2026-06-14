@@ -3,10 +3,20 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 // Route the worker call through Rust (native HTTP). The webview's own fetch is
 // blocked from the custom `tauri://` origin to remote HTTPS ("Load failed").
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { GOOGLE_CLIENT_ID, getServerUrl, setSession } from "./config";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const LOGIN_TIMEOUT_MS = 3 * 60 * 1000;
+
+/** Page the browser shows after the redirect; tries to close itself. */
+const DONE_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Msticky</title>
+<style>body{font-family:-apple-system,system-ui,sans-serif;background:#fef9c3;color:#3f3a16;
+display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
+.card{background:#fff;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 10px 30px rgba(0,0,0,.1)}
+h1{margin:0 0 .25rem;font-size:1.25rem}p{margin:0;opacity:.6;font-size:.9rem}</style></head>
+<body><div class="card"><h1>✓ Signed in to Msticky</h1><p>You can close this tab.</p></div>
+<script>setTimeout(function(){window.close()},800)</script></body></html>`;
 
 function base64url(bytes: Uint8Array): string {
   let s = "";
@@ -37,7 +47,7 @@ async function pkceChallenge(verifier: string): Promise<string> {
  * Each Google account maps to its own private notes namespace.
  */
 export async function signInWithGoogle(): Promise<void> {
-  const port = await start();
+  const port = await start({ response: DONE_HTML });
   const redirectUri = `http://127.0.0.1:${port}`;
 
   const codeVerifier = randomString(64);
@@ -102,6 +112,16 @@ export async function signInWithGoogle(): Promise<void> {
       email: string;
     };
     setSession(body.token, body.userId, body.email);
+    // Bring the app back to the front so the user doesn't have to leave the
+    // browser tab manually.
+    try {
+      const win = getCurrentWindow();
+      await win.unminimize();
+      await win.show();
+      await win.setFocus();
+    } catch {
+      /* focus is best-effort */
+    }
   } finally {
     window.clearTimeout(timer);
     unlisten();
