@@ -1,9 +1,13 @@
 -- D1 schema for the Msticky sync worker.
 
 CREATE TABLE IF NOT EXISTS users (
-  id         TEXT PRIMARY KEY,
-  email      TEXT UNIQUE NOT NULL,
-  created_at INTEGER NOT NULL
+  id           TEXT PRIMARY KEY,
+  email        TEXT UNIQUE NOT NULL,
+  created_at   INTEGER NOT NULL,
+  -- End-to-end encryption: PBKDF2 salt + a verifier (known value encrypted with
+  -- the derived key). The key/passphrase itself never reaches the server.
+  e2e_salt     TEXT,
+  e2e_verifier TEXT
 );
 
 -- Short-lived login codes for the email magic-link/code flow.

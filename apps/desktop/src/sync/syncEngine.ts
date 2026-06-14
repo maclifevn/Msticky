@@ -3,9 +3,10 @@ import {
   type ServerMessage,
   serverMessageSchema,
 } from "@msticky/shared";
-import { getNote } from "../store/repo";
+import { getNote, getAllNotes } from "../store/repo";
 import { applyRemoteNote } from "../store/actions";
 import { onNoteChanged, announceBulkChanged } from "../lib/native";
+import { encryptContent, decryptContent } from "./e2e";
 import {
   getDeviceId,
   getLastSyncAt,
@@ -60,7 +61,7 @@ export class SyncEngine {
         return;
       }
       this.enqueue({ opId: crypto.randomUUID(), deviceId: getDeviceId(), note });
-      this.flush();
+      void this.flush();
     });
     this.connect();
   }
@@ -91,7 +92,7 @@ export class SyncEngine {
       this.setStatus("online");
       // Pull anything we missed, then replay queued local ops.
       ws.send(JSON.stringify({ type: "pull", since: getLastSyncAt() }));
-      this.flush();
+      void this.flush();
     };
     ws.onmessage = (e) => this.onMessage(e.data);
     ws.onclose = () => {
@@ -131,8 +132,10 @@ export class SyncEngine {
     if (msg.type === "sync") {
       let maxTs = getLastSyncAt();
       for (const note of msg.notes) {
+        // Decrypt content if E2E is on (passthrough for plaintext/legacy notes).
+        const decoded = { ...note, content: await decryptContent(note.content) };
         this.remoteApplied.set(note.id, note.updatedAt);
-        await applyRemoteNote(note);
+        await applyRemoteNote(decoded);
         if (note.updatedAt > maxTs) maxTs = note.updatedAt;
       }
       setLastSyncAt(maxTs);
@@ -166,10 +169,27 @@ export class SyncEngine {
     this.writeQueue(this.readQueue().filter((o) => !set.has(o.opId)));
   }
 
-  private flush(): void {
+  private async flush(): Promise<void> {
     if (this.ws?.readyState !== WebSocket.OPEN) return;
     const q = this.readQueue();
-    if (q.length) this.ws.send(JSON.stringify({ type: "push", ops: q }));
+    if (!q.length) return;
+    // Encrypt content just before it leaves the device (passthrough when off).
+    const ops = await Promise.all(
+      q.map(async (o) => ({
+        ...o,
+        note: { ...o.note, content: await encryptContent(o.note.content) },
+      })),
+    );
+    this.ws.send(JSON.stringify({ type: "push", ops }));
+  }
+
+  /** Re-push every local note (used right after enabling encryption so existing
+   *  notes get re-stored as ciphertext on the server). */
+  async repushAll(): Promise<void> {
+    for (const note of await getAllNotes()) {
+      this.enqueue({ opId: crypto.randomUUID(), deviceId: getDeviceId(), note });
+    }
+    void this.flush();
   }
 }
 

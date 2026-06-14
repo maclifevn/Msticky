@@ -80,6 +80,36 @@ fn set_always_on_top_cmd(app: AppHandle, label: String, value: bool) -> Result<(
     Ok(())
 }
 
+// ── OS keychain (caches the E2E key per device) ──────────────────────────────
+
+const KEYCHAIN_SERVICE: &str = "com.msticky.app";
+
+#[tauri::command]
+fn keychain_set(account: String, value: String) -> Result<(), String> {
+    let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
+    e.set_password(&value).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn keychain_get(account: String) -> Result<Option<String>, String> {
+    let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
+    match e.get_password() {
+        Ok(v) => Ok(Some(v)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn keychain_delete(account: String) -> Result<(), String> {
+    let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
+    match e.delete_credential() {
+        Ok(()) => Ok(()),
+        Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 // ── App bootstrap ────────────────────────────────────────────────────────────
 
 fn migrations() -> Vec<Migration> {
@@ -151,7 +181,10 @@ pub fn run() {
             open_note_window,
             open_board,
             set_pinned,
-            set_always_on_top_cmd
+            set_always_on_top_cmd,
+            keychain_set,
+            keychain_get,
+            keychain_delete
         ])
         .run(tauri::generate_context!())
         .expect("error while running Msticky");

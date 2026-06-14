@@ -93,3 +93,15 @@ export const googleAuthSchema = z.object({
   redirectUri: z.string().url(),
 });
 export type GoogleAuth = z.infer<typeof googleAuthSchema>;
+
+/**
+ * End-to-end encryption config, stored per user. `salt` feeds PBKDF2 on the
+ * device; `verifier` is a known value encrypted with the derived key so a
+ * device can check a passphrase is correct. Neither reveals the key/passphrase,
+ * so the server stays unable to decrypt note content.
+ */
+export const e2eConfigSchema = z.object({
+  salt: z.string().min(1),
+  verifier: z.string().min(1),
+});
+export type E2eConfig = z.infer<typeof e2eConfigSchema>;

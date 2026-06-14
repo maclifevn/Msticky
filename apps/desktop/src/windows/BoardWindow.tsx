@@ -7,6 +7,14 @@ import { swatch } from "../lib/colors";
 import { useTheme } from "../lib/theme";
 import { noteTitle } from "../lib/markdown";
 import { getSyncEngine, type SyncStatus } from "../sync/syncEngine";
+import { getToken } from "../sync/config";
+import {
+  currentMode,
+  enableEncryption,
+  tryUnlockFromKeychain,
+  unlock as e2eUnlock,
+  type E2eMode,
+} from "../sync/e2e";
 import { AccountPanel } from "../components/AccountPanel";
 import {
   PlusIcon,
@@ -29,20 +37,67 @@ export function BoardWindow() {
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("signed-out");
+  const [e2eMode, setE2eMode] = useState<E2eMode>("off");
   const [showAccount, setShowAccount] = useState(false);
   const notes = useNotes(showArchived);
 
   // The sync engine runs in the board window; it bridges every window's edits
   // to the hub and applies remote changes back into the shared SQLite cache.
+  // If E2E is enabled but this device isn't unlocked yet, we hold off on syncing
+  // (pulling ciphertext we can't read would clobber the local plaintext).
   useEffect(() => {
     const engine = getSyncEngine();
     const off = engine.onStatus(setSyncStatus);
-    void engine.start();
+    let cancelled = false;
+
+    void (async () => {
+      if (!getToken()) {
+        engine.start();
+        return;
+      }
+      // Cached key on this device → unlock silently and sync.
+      if (await tryUnlockFromKeychain()) {
+        if (!cancelled) setE2eMode("unlocked");
+        engine.start();
+        return;
+      }
+      try {
+        const mode = await currentMode(); // "off" | "locked" (no cached key)
+        if (cancelled) return;
+        if (mode === "off") {
+          setE2eMode("off");
+          engine.start();
+        } else {
+          setE2eMode("locked");
+          setShowAccount(true); // prompt the user to unlock
+        }
+      } catch {
+        // Offline / server unreachable: assume the common case (no E2E) and sync.
+        if (!cancelled) setE2eMode("off");
+        engine.start();
+      }
+    })();
+
     return () => {
+      cancelled = true;
       off();
       engine.stop();
     };
   }, []);
+
+  // Enable encryption (first device): set up, then re-encrypt existing notes.
+  const handleEnableEncryption = async (passphrase: string) => {
+    await enableEncryption(passphrase);
+    setE2eMode("unlocked");
+    await getSyncEngine().repushAll();
+  };
+
+  // Unlock encryption on this device, then start syncing.
+  const handleUnlock = async (passphrase: string) => {
+    await e2eUnlock(passphrase);
+    setE2eMode("unlocked");
+    getSyncEngine().start();
+  };
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -145,7 +200,10 @@ export function BoardWindow() {
       {showAccount && (
         <AccountPanel
           status={syncStatus}
+          e2eMode={e2eMode}
           isDark={isDark}
+          onEnableEncryption={handleEnableEncryption}
+          onUnlock={handleUnlock}
           onClose={() => setShowAccount(false)}
         />
       )}

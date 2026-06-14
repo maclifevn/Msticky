@@ -29,6 +29,9 @@ export function setServerUrl(url: string): void {
 export function getToken(): string | null {
   return localStorage.getItem(KEYS.token);
 }
+export function getUserId(): string | null {
+  return localStorage.getItem(KEYS.userId);
+}
 export function getEmail(): string | null {
   return localStorage.getItem(KEYS.email);
 }

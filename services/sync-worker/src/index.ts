@@ -1,4 +1,4 @@
-import { googleAuthSchema, opSchema, type Note } from "@msticky/shared";
+import { googleAuthSchema, e2eConfigSchema, opSchema, type Note } from "@msticky/shared";
 import type { Env } from "./env";
 import { decodeJwtPayload, signJwt, tokenFromRequest, verifyJwt } from "./auth";
 import { notesSince, upsertNote } from "./notesRepo";
@@ -96,6 +96,39 @@ export default {
           env.JWT_SECRET,
         );
         return json({ token, userId, email });
+      }
+
+      // ── E2E config (salt + verifier) per user ─────────────────────────────
+      if (url.pathname === "/e2e" && req.method === "GET") {
+        const c = await claims(req, env);
+        if (!c) return json({ error: "unauthorized" }, 401);
+        const row = await env.DB.prepare(
+          "SELECT e2e_salt, e2e_verifier FROM users WHERE id = ?1",
+        )
+          .bind(c.sub)
+          .first<{ e2e_salt: string | null; e2e_verifier: string | null }>();
+        if (!row?.e2e_salt || !row?.e2e_verifier) return json({ salt: null });
+        return json({ salt: row.e2e_salt, verifier: row.e2e_verifier });
+      }
+
+      if (url.pathname === "/e2e" && req.method === "POST") {
+        const c = await claims(req, env);
+        if (!c) return json({ error: "unauthorized" }, 401);
+        const { salt, verifier } = e2eConfigSchema.parse(await req.json());
+        // First write wins: changing the passphrase later would orphan existing
+        // ciphertext, so refuse to overwrite an existing config.
+        const existing = await env.DB.prepare(
+          "SELECT e2e_salt FROM users WHERE id = ?1",
+        )
+          .bind(c.sub)
+          .first<{ e2e_salt: string | null }>();
+        if (existing?.e2e_salt) return json({ error: "already_configured" }, 409);
+        await env.DB.prepare(
+          "UPDATE users SET e2e_salt = ?2, e2e_verifier = ?3 WHERE id = ?1",
+        )
+          .bind(c.sub, salt, verifier)
+          .run();
+        return json({ ok: true });
       }
 
       // ── WebSocket → per-user Durable Object ───────────────────────────────
