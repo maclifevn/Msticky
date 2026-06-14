@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { renderMarkdown, toggleTaskLine } from "../lib/markdown";
+import { t, useLang } from "../lib/i18n";
 
 interface Props {
   content: string;
@@ -17,6 +18,7 @@ const SAVE_DEBOUNCE_MS = 300;
 export function NoteEditor({ content, fg, onChange }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(content);
+  const [lang] = useLang();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const timer = useRef<number | undefined>(undefined);
 
@@ -66,7 +68,7 @@ export function NoteEditor({ content, fg, onChange }: Props) {
         className="no-drag h-full w-full flex-1 resize-none bg-transparent px-3 py-2 text-[13px] leading-snug outline-none"
         style={{ color: fg }}
         value={draft}
-        placeholder="Write something…  ( - [ ] for a checklist )"
+        placeholder={t("writePlaceholder", lang)}
         onChange={(e) => {
           setDraft(e.target.value);
           scheduleSave(e.target.value);
@@ -88,7 +90,7 @@ export function NoteEditor({ content, fg, onChange }: Props) {
       {content.trim() ? (
         <div dangerouslySetInnerHTML={{ __html: renderMarkdown(content) }} />
       ) : (
-        <span className="opacity-40">Write something…</span>
+        <span className="opacity-40">{t("writeShort", lang)}</span>
       )}
     </div>
   );

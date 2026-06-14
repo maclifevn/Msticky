@@ -2,14 +2,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { ask } from "@tauri-apps/plugin-dialog";
+import { t } from "./i18n";
 
 /** Native confirm dialog before a destructive delete. Returns true to proceed. */
 export function confirmDeleteNote(): Promise<boolean> {
-  return ask("This note will be removed on all your signed-in devices.", {
-    title: "Delete note?",
+  return ask(t("deleteBody"), {
+    title: t("deleteTitle"),
     kind: "warning",
-    okLabel: "Delete",
-    cancelLabel: "Cancel",
+    okLabel: t("delete"),
+    cancelLabel: t("cancel"),
   });
 }
 

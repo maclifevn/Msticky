@@ -5,6 +5,7 @@ import { createNote, archiveNote, deleteNote } from "../store/actions";
 import { openNoteWindow, confirmDeleteNote } from "../lib/native";
 import { swatch } from "../lib/colors";
 import { useTheme } from "../lib/theme";
+import { t, useLang, type Lang } from "../lib/i18n";
 import { noteTitle } from "../lib/markdown";
 import { getSyncEngine, type SyncStatus } from "../sync/syncEngine";
 import { getToken } from "../sync/config";
@@ -23,6 +24,7 @@ import {
   TrashIcon,
   SunIcon,
   MoonIcon,
+  GlobeIcon,
 } from "../components/Icons";
 
 const STATUS_COLOR: Record<SyncStatus, string> = {
@@ -34,6 +36,7 @@ const STATUS_COLOR: Record<SyncStatus, string> = {
 
 export function BoardWindow() {
   const [theme, setTheme] = useTheme();
+  const [lang, setLang] = useLang();
   const [showArchived, setShowArchived] = useState(false);
   const [query, setQuery] = useState("");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("signed-out");
@@ -125,10 +128,12 @@ export function BoardWindow() {
         className="drag-region flex items-center gap-2 px-4 py-3"
       >
         <span className="text-lg font-bold tracking-tight">Msticky</span>
-        <span className="text-xs opacity-50">{filtered.length} notes</span>
+        <span className="text-xs opacity-50">
+          {filtered.length} {t("notes", lang)}
+        </span>
         <div className="flex-1" />
         <button
-          title="Account & sync"
+          title={t("accountSync", lang)}
           onClick={() => setShowAccount(true)}
           className="no-drag flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs hover:bg-black/10"
         >
@@ -137,21 +142,31 @@ export function BoardWindow() {
             style={{ background: STATUS_COLOR[syncStatus] }}
           />
           {syncStatus === "online"
-            ? "Synced"
+            ? t("signedInPill", lang)
             : syncStatus === "signed-out"
-              ? "Sign in"
+              ? t("signInPill", lang)
               : syncStatus === "connecting"
                 ? "…"
-                : "Offline"}
+                : t("offlinePill", lang)}
         </button>
-        <IconBtn title="Toggle theme" onClick={() => setTheme(isDark ? "light" : "dark")}>
+        <button
+          title="Ngôn ngữ / Language"
+          onClick={() => setLang(lang === "vi" ? "en" : "vi")}
+          className="no-drag flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium hover:bg-black/10"
+        >
+          <GlobeIcon width={15} height={15} /> {lang.toUpperCase()}
+        </button>
+        <IconBtn
+          title={isDark ? "Light" : "Dark"}
+          onClick={() => setTheme(isDark ? "light" : "dark")}
+        >
           {isDark ? <SunIcon /> : <MoonIcon />}
         </IconBtn>
         <button
           onClick={newNote}
           className="no-drag flex items-center gap-1 rounded-lg bg-amber-400 px-3 py-1.5 text-sm font-medium text-amber-950 hover:bg-amber-300"
         >
-          <PlusIcon /> New
+          <PlusIcon /> {t("new", lang)}
         </button>
       </header>
 
@@ -166,7 +181,7 @@ export function BoardWindow() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search notes…"
+            placeholder={t("search", lang)}
             className="w-full bg-transparent text-sm outline-none"
           />
         </div>
@@ -180,7 +195,7 @@ export function BoardWindow() {
                 : "bg-white shadow-sm"
           }`}
         >
-          <ArchiveIcon /> {showArchived ? "All" : "Active"}
+          <ArchiveIcon /> {showArchived ? t("all", lang) : t("active", lang)}
         </button>
       </div>
 
@@ -188,11 +203,11 @@ export function BoardWindow() {
       <div className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fill,minmax(160px,1fr))] gap-3 overflow-auto px-4 pb-4">
         {filtered.length === 0 ? (
           <div className="col-span-full mt-16 text-center text-sm opacity-50">
-            {query ? "No notes match your search." : "No notes yet — hit New."}
+            {query ? t("noMatch", lang) : t("emptyBoard", lang)}
           </div>
         ) : (
           filtered.map((n) => (
-            <NoteCard key={n.id} note={n} theme={theme} />
+            <NoteCard key={n.id} note={n} theme={theme} lang={lang} />
           ))
         )}
       </div>
@@ -211,7 +226,15 @@ export function BoardWindow() {
   );
 }
 
-function NoteCard({ note, theme }: { note: Note; theme: "light" | "dark" }) {
+function NoteCard({
+  note,
+  theme,
+  lang,
+}: {
+  note: Note;
+  theme: "light" | "dark";
+  lang: Lang;
+}) {
   const s = swatch(note.color, theme);
   return (
     <div
@@ -219,9 +242,11 @@ function NoteCard({ note, theme }: { note: Note; theme: "light" | "dark" }) {
       style={{ background: s.bg, color: s.fg }}
       onClick={() => void openNoteWindow(note.id)}
     >
-      <div className="line-clamp-1 pr-12 text-xs font-semibold">{noteTitle(note.content)}</div>
+      <div className="line-clamp-1 pr-12 text-xs font-semibold">
+        {noteTitle(note.content) || t("untitled", lang)}
+      </div>
       <div className="mt-1 flex-1 overflow-hidden whitespace-pre-wrap text-[11px] leading-snug opacity-80">
-        {note.content.slice(0, 240) || "Empty note"}
+        {note.content.slice(0, 240) || t("emptyNote", lang)}
       </div>
       <div className="absolute right-1.5 top-1.5 flex gap-1 opacity-0 transition group-hover:opacity-100">
         <CardBtn

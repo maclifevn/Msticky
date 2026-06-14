@@ -3,6 +3,7 @@ import { signInWithGoogle } from "../sync/clientAuth";
 import { clearSession, getEmail, getServerUrl, setServerUrl } from "../sync/config";
 import { getSyncEngine, type SyncStatus } from "../sync/syncEngine";
 import type { E2eMode } from "../sync/e2e";
+import { t, useLang, type Lang } from "../lib/i18n";
 
 interface Props {
   status: SyncStatus;
@@ -23,6 +24,7 @@ export function AccountPanel({
   onClose,
 }: Props) {
   const signedIn = status !== "signed-out";
+  const [lang] = useLang();
   const [server, setServer] = useState(getServerUrl());
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -63,20 +65,21 @@ export function AccountPanel({
         className={`w-80 rounded-2xl p-5 shadow-xl ${card}`}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="mb-3 text-base font-bold">Account & Sync</h2>
+        <h2 className="mb-3 text-base font-bold">{t("accountSync", lang)}</h2>
 
         {signedIn ? (
           <div className="space-y-3">
             <p className="text-sm">
-              Signed in as <span className="font-medium">{getEmail()}</span>
+              {t("signedInAs", lang)} <span className="font-medium">{getEmail()}</span>
             </p>
             <p className="text-xs opacity-60">
-              Status: <StatusText status={status} />
+              {t("statusLabel", lang)} <StatusText status={status} lang={lang} />
             </p>
 
             <EncryptionSection
               mode={e2eMode}
               field={field}
+              lang={lang}
               onEnableEncryption={onEnableEncryption}
               onUnlock={onUnlock}
             />
@@ -85,15 +88,12 @@ export function AccountPanel({
               onClick={signOut}
               className="w-full rounded-lg bg-red-500 py-2 text-sm font-medium text-white hover:bg-red-400"
             >
-              Sign out
+              {t("signOut", lang)}
             </button>
           </div>
         ) : (
           <div className="space-y-3">
-            <p className="text-xs opacity-60">
-              Sign in with your Google account to sync your notes across devices.
-              Your notes are private to you.
-            </p>
+            <p className="text-xs opacity-60">{t("googleBlurb", lang)}</p>
 
             <button
               disabled={busy}
@@ -101,7 +101,7 @@ export function AccountPanel({
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <GoogleGlyph />
-              {busy ? "Opening browser…" : "Sign in with Google"}
+              {busy ? t("openingBrowser", lang) : t("signInGoogle", lang)}
             </button>
 
             {error && <p className="text-xs text-red-500">{error}</p>}
@@ -110,12 +110,12 @@ export function AccountPanel({
               onClick={() => setShowAdvanced((v) => !v)}
               className="text-xs opacity-50 hover:opacity-80"
             >
-              {showAdvanced ? "Hide" : "Advanced"} settings
+              {showAdvanced ? t("hideAdvanced", lang) : t("advanced", lang)}
             </button>
             {showAdvanced && (
               <div className="space-y-1">
                 <label className="block text-xs font-medium opacity-70">
-                  Server URL
+                  {t("serverUrl", lang)}
                 </label>
                 <input
                   value={server}
@@ -135,11 +135,13 @@ export function AccountPanel({
 function EncryptionSection({
   mode,
   field,
+  lang,
   onEnableEncryption,
   onUnlock,
 }: {
   mode: E2eMode;
   field: string;
+  lang: Lang;
   onEnableEncryption: (p: string) => Promise<void>;
   onUnlock: (p: string) => Promise<void>;
 }) {
@@ -152,7 +154,7 @@ function EncryptionSection({
   if (mode === "unlocked") {
     return (
       <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs">
-        🔒 End-to-end encryption: <span className="font-semibold">on</span>
+        🔒 {t("e2eOn", lang)}
       </div>
     );
   }
@@ -160,11 +162,11 @@ function EncryptionSection({
   const submit = async () => {
     setError(null);
     if (mode === "off" && pass !== confirm) {
-      setError("Passphrases don't match");
+      setError(t("passMismatch", lang));
       return;
     }
     if (pass.length < 6) {
-      setError("Use at least 6 characters");
+      setError(t("passTooShort", lang));
       return;
     }
     setBusy(true);
@@ -185,34 +187,26 @@ function EncryptionSection({
 
   return (
     <div className="rounded-lg border border-black/10 px-3 py-2 text-xs">
-      <div className="flex items-center justify-between">
-        <span>
-          🔒 End-to-end encryption:{" "}
-          <span className="font-semibold">{isUnlock ? "locked" : "off"}</span>
-        </span>
+      <div className="flex items-center justify-between gap-2">
+        <span>🔒 {isUnlock ? t("e2eLocked", lang) : t("e2eOff", lang)}</span>
         {!open && (
           <button
             onClick={() => setOpen(true)}
-            className="rounded-md bg-black/10 px-2 py-1 font-medium hover:bg-black/20"
+            className="shrink-0 rounded-md bg-black/10 px-2 py-1 font-medium hover:bg-black/20"
           >
-            {isUnlock ? "Unlock" : "Enable"}
+            {isUnlock ? t("unlock", lang) : t("enable", lang)}
           </button>
         )}
       </div>
 
       {open && (
         <div className="mt-2 space-y-2">
-          {!isUnlock && (
-            <p className="opacity-60">
-              Encrypts note text on your device so the server can't read it. If you
-              forget this passphrase, encrypted notes can't be recovered.
-            </p>
-          )}
+          {!isUnlock && <p className="opacity-60">{t("e2eBlurb", lang)}</p>}
           <input
             type="password"
             value={pass}
             onChange={(e) => setPass(e.target.value)}
-            placeholder={isUnlock ? "Encryption passphrase" : "New passphrase"}
+            placeholder={isUnlock ? t("encPassphrase", lang) : t("newPassphrase", lang)}
             className={`w-full rounded-md border px-2 py-1.5 outline-none ${field}`}
           />
           {!isUnlock && (
@@ -223,7 +217,7 @@ function EncryptionSection({
               onKeyDown={(e) => {
                 if (e.key === "Enter") void submit();
               }}
-              placeholder="Confirm passphrase"
+              placeholder={t("confirmPassphrase", lang)}
               className={`w-full rounded-md border px-2 py-1.5 outline-none ${field}`}
             />
           )}
@@ -233,7 +227,7 @@ function EncryptionSection({
             onClick={submit}
             className="w-full rounded-md bg-amber-400 py-1.5 font-medium text-amber-950 hover:bg-amber-300 disabled:opacity-50"
           >
-            {busy ? "…" : isUnlock ? "Unlock this device" : "Enable encryption"}
+            {busy ? "…" : isUnlock ? t("unlockDevice", lang) : t("enableEncryption", lang)}
           </button>
         </div>
       )}
@@ -241,12 +235,12 @@ function EncryptionSection({
   );
 }
 
-function StatusText({ status }: { status: SyncStatus }) {
+function StatusText({ status, lang }: { status: SyncStatus; lang: Lang }) {
   const map: Record<SyncStatus, string> = {
-    "signed-out": "signed out",
-    connecting: "connecting…",
-    online: "synced",
-    offline: "offline (will retry)",
+    "signed-out": t("stSignedOut", lang),
+    connecting: t("stConnecting", lang),
+    online: t("stSynced", lang),
+    offline: t("stOffline", lang),
   };
   return <span>{map[status]}</span>;
 }

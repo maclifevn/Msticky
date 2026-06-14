@@ -47,13 +47,14 @@ export function toggleTaskLine(source: string, lineIndex: number): string {
   return lines.join("\n");
 }
 
-/** First non-empty line, stripped of markdown, for board/list previews. */
+/** First non-empty line, stripped of markdown, for board/list previews.
+ *  Returns "" when the note is empty so the caller can localize the fallback. */
 export function noteTitle(source: string): string {
   const first = source
     .split("\n")
     .map((l) => l.trim())
     .find((l) => l.length > 0);
-  if (!first) return "Untitled note";
+  if (!first) return "";
   return first
     .replace(/^#+\s*/, "")
     .replace(/^[-*]\s+\[[ xX]\]\s*/, "")

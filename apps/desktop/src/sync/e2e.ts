@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { getServerUrl, getToken, getUserId } from "./config";
+import { t } from "../lib/i18n";
 
 /**
  * Optional end-to-end encryption for note content.
@@ -169,14 +170,14 @@ export async function enableEncryption(passphrase: string): Promise<void> {
 /** Unlock encryption on this device with the passphrase. */
 export async function unlock(passphrase: string): Promise<void> {
   const cfg = await getServerConfig();
-  if (!cfg.salt || !cfg.verifier) throw new Error("Encryption is not enabled");
+  if (!cfg.salt || !cfg.verifier) throw new Error(t("encNotEnabled"));
   const key = await deriveKey(passphrase, b64decode(cfg.salt));
   // Verify by decrypting the known verifier value.
   try {
     const check = await aesDecrypt(key, cfg.verifier);
     if (check !== VERIFIER_PLAINTEXT) throw new Error("bad");
   } catch {
-    throw new Error("Wrong passphrase");
+    throw new Error(t("wrongPass"));
   }
   activeKey = key;
   await cacheKey(key);

@@ -14,6 +14,7 @@ import {
 } from "../lib/native";
 import { swatch } from "../lib/colors";
 import { useTheme } from "../lib/theme";
+import { t, useLang } from "../lib/i18n";
 import { NoteEditor } from "../components/NoteEditor";
 import { ColorPicker } from "../components/ColorPicker";
 import {
@@ -31,6 +32,7 @@ const SAVE_GEOMETRY_MS = 400;
 export function NoteWindow({ id }: { id: string }) {
   const note = useNote(id);
   const [theme] = useTheme();
+  const [lang] = useLang();
   const [showColors, setShowColors] = useState(false);
   const appliedGeometry = useRef(false);
   const geomTimer = useRef<number | undefined>(undefined);
@@ -121,28 +123,28 @@ export function NoteWindow({ id }: { id: string }) {
         className="drag-region group flex items-center gap-px border-b border-black/5 px-1 py-[3px]"
         style={{ background: s.accent }}
       >
-        <ToolButton title="Close" onClick={() => void closeThisWindow()}>
+        <ToolButton title={t("close", lang)} onClick={() => void closeThisWindow()}>
           <CloseIcon width={12} height={12} />
         </ToolButton>
 
         <div className="flex-1" />
 
-        <ToolButton title="Pin to desktop" active={note.pinned} onClick={togglePin}>
+        <ToolButton title={t("pin", lang)} active={note.pinned} onClick={togglePin}>
           <PinIcon width={13} height={13} />
         </ToolButton>
-        <ToolButton title="Always on top" active={note.alwaysOnTop} onClick={toggleTop}>
+        <ToolButton title={t("onTop", lang)} active={note.alwaysOnTop} onClick={toggleTop}>
           <TopIcon width={13} height={13} />
         </ToolButton>
-        <ToolButton title="Color" active={showColors} onClick={() => setShowColors((v) => !v)}>
+        <ToolButton title={t("color", lang)} active={showColors} onClick={() => setShowColors((v) => !v)}>
           <PaletteIcon width={13} height={13} />
         </ToolButton>
-        <ToolButton title="New note" onClick={newNote}>
+        <ToolButton title={t("newNote", lang)} onClick={newNote}>
           <PlusIcon width={13} height={13} />
         </ToolButton>
-        <ToolButton title="Open board" onClick={() => void openBoard()}>
+        <ToolButton title={t("openBoard", lang)} onClick={() => void openBoard()}>
           <BoardIcon width={13} height={13} />
         </ToolButton>
-        <ToolButton title="Delete note" onClick={removeNote}>
+        <ToolButton title={t("deleteNote", lang)} onClick={removeNote}>
           <TrashIcon width={13} height={13} />
         </ToolButton>
       </div>
