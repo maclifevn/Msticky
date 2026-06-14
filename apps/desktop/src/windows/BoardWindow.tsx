@@ -8,7 +8,7 @@ import { useTheme } from "../lib/theme";
 import { t, useLang, type Lang } from "../lib/i18n";
 import { noteTitle } from "../lib/markdown";
 import { getSyncEngine, type SyncStatus } from "../sync/syncEngine";
-import { getToken } from "../sync/config";
+import { getToken, setLastSyncAt } from "../sync/config";
 import {
   currentMode,
   enableEncryption,
@@ -95,10 +95,12 @@ export function BoardWindow() {
     await getSyncEngine().repushAll();
   };
 
-  // Unlock encryption on this device, then start syncing.
+  // Unlock encryption on this device, then re-pull everything from scratch so
+  // any notes that synced while locked get decrypted (and placeholders healed).
   const handleUnlock = async (passphrase: string) => {
     await e2eUnlock(passphrase);
     setE2eMode("unlocked");
+    setLastSyncAt(0);
     getSyncEngine().start();
   };
 

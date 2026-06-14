@@ -6,7 +6,7 @@ import {
 import { getNote, getAllNotes } from "../store/repo";
 import { applyRemoteNote } from "../store/actions";
 import { onNoteChanged, announceBulkChanged } from "../lib/native";
-import { encryptContent, decryptContent } from "./e2e";
+import { encryptContent, decryptContent, isUnlocked } from "./e2e";
 import {
   getDeviceId,
   getLastSyncAt,
@@ -131,14 +131,21 @@ export class SyncEngine {
     }
     if (msg.type === "sync") {
       let maxTs = getLastSyncAt();
+      let skippedLocked = false;
       for (const note of msg.notes) {
-        // Decrypt content if E2E is on (passthrough for plaintext/legacy notes).
+        // If a note is encrypted but this device is locked, skip it — applying
+        // a placeholder would clobber any local plaintext. Hold the watermark so
+        // it re-syncs once unlocked.
+        if (note.content.startsWith("enc:v1:") && !isUnlocked()) {
+          skippedLocked = true;
+          continue;
+        }
         const decoded = { ...note, content: await decryptContent(note.content) };
         this.remoteApplied.set(note.id, note.updatedAt);
         await applyRemoteNote(decoded);
         if (note.updatedAt > maxTs) maxTs = note.updatedAt;
       }
-      setLastSyncAt(maxTs);
+      if (!skippedLocked) setLastSyncAt(maxTs);
       if (msg.notes.length) void announceBulkChanged();
     } else if (msg.type === "ack") {
       this.removeFromQueue(msg.opIds);

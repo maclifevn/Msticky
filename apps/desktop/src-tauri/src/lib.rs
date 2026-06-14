@@ -84,30 +84,45 @@ fn set_always_on_top_cmd(app: AppHandle, label: String, value: bool) -> Result<(
 
 const KEYCHAIN_SERVICE: &str = "com.msticky.app";
 
+// Keychain access can block (the OS may show a permission prompt), so run it on
+// a blocking thread — never the main thread, or the whole UI freezes.
+
 #[tauri::command]
-fn keychain_set(account: String, value: String) -> Result<(), String> {
-    let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
-    e.set_password(&value).map_err(|e| e.to_string())
+async fn keychain_set(account: String, value: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
+        e.set_password(&value).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn keychain_get(account: String) -> Result<Option<String>, String> {
-    let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
-    match e.get_password() {
-        Ok(v) => Ok(Some(v)),
-        Err(keyring::Error::NoEntry) => Ok(None),
-        Err(e) => Err(e.to_string()),
-    }
+async fn keychain_get(account: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
+        match e.get_password() {
+            Ok(v) => Ok(Some(v)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(e) => Err(e.to_string()),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-fn keychain_delete(account: String) -> Result<(), String> {
-    let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
-    match e.delete_credential() {
-        Ok(()) => Ok(()),
-        Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+async fn keychain_delete(account: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let e = keyring::Entry::new(KEYCHAIN_SERVICE, &account).map_err(|e| e.to_string())?;
+        match e.delete_credential() {
+            Ok(()) => Ok(()),
+            Err(keyring::Error::NoEntry) => Ok(()),
+            Err(e) => Err(e.to_string()),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ── App bootstrap ────────────────────────────────────────────────────────────
