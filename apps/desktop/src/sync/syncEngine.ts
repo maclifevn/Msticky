@@ -51,19 +51,21 @@ export class SyncEngine {
 
   async start(): Promise<void> {
     this.stopped = false;
-    // Push local edits from any window to the hub.
-    this.unlistenNote = await onNoteChanged(async ({ id }) => {
-      const note = await getNote(id);
-      if (!note) return;
-      // Skip if this change is just us re-applying a note from the network.
-      if (this.remoteApplied.get(id) === note.updatedAt) {
-        this.remoteApplied.delete(id);
-        return;
-      }
-      this.enqueue({ opId: crypto.randomUUID(), deviceId: getDeviceId(), note });
-      void this.flush();
-    });
-    this.connect();
+    // Push local edits from any window to the hub. Idempotent: attach once.
+    if (!this.unlistenNote) {
+      this.unlistenNote = await onNoteChanged(async ({ id }) => {
+        const note = await getNote(id);
+        if (!note) return;
+        // Skip if this change is just us re-applying a note from the network.
+        if (this.remoteApplied.get(id) === note.updatedAt) {
+          this.remoteApplied.delete(id);
+          return;
+        }
+        this.enqueue({ opId: crypto.randomUUID(), deviceId: getDeviceId(), note });
+        void this.flush();
+      });
+    }
+    this.reconnectNow();
   }
 
   stop(): void {

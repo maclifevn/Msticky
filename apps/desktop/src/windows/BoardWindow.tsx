@@ -45,53 +45,49 @@ export function BoardWindow() {
   const [showAccount, setShowAccount] = useState(false);
   const notes = useNotes(showArchived);
 
-  // The sync engine runs in the board window; it bridges every window's edits
-  // to the hub and applies remote changes back into the shared SQLite cache.
-  // If E2E is enabled but this device isn't unlocked yet, we hold off on syncing
-  // (pulling ciphertext we can't read would clobber the local plaintext).
+  // Decide what to do with the session: sync as plaintext (E2E off), unlock
+  // silently from the keychain, or hold off and prompt to unlock. Runs on mount
+  // and again whenever the session changes (sign in/out). If E2E is on but this
+  // device isn't unlocked, we don't sync — pulling ciphertext we can't read
+  // would clobber the local plaintext.
+  const initSync = async () => {
+    const engine = getSyncEngine();
+    if (!getToken()) {
+      setE2eMode("off");
+      await engine.start(); // connects, finds no token → signed-out
+      return;
+    }
+    if (await tryUnlockFromKeychain()) {
+      setE2eMode("unlocked");
+      setLastSyncAt(0); // re-pull so anything synced while locked decrypts
+      await engine.start();
+      return;
+    }
+    let on: boolean;
+    try {
+      on = await isConfigured();
+    } catch {
+      on = (await getAllNotes()).some((n) => n.content.startsWith("enc:v1:"));
+    }
+    if (on) {
+      setE2eMode("locked");
+      engine.stop(); // don't sync until unlocked
+      setShowAccount(true);
+    } else {
+      setE2eMode("off");
+      await engine.start();
+    }
+  };
+
   useEffect(() => {
     const engine = getSyncEngine();
     const off = engine.onStatus(setSyncStatus);
-    let cancelled = false;
-
-    void (async () => {
-      if (!getToken()) {
-        engine.start();
-        return;
-      }
-      // Cached key on this device → unlock silently and re-pull (heals any
-      // placeholders that synced before the key was available).
-      if (await tryUnlockFromKeychain()) {
-        if (cancelled) return;
-        setE2eMode("unlocked");
-        setLastSyncAt(0);
-        engine.start();
-        return;
-      }
-      // Not unlocked here: is encryption on for this account? Prefer the server;
-      // if offline, infer from any encrypted note already in the local cache.
-      let on: boolean;
-      try {
-        on = await isConfigured();
-      } catch {
-        on = (await getAllNotes()).some((n) => n.content.startsWith("enc:v1:"));
-      }
-      if (cancelled) return;
-      if (on) {
-        // Locked: don't sync (would clobber local). Prompt to unlock.
-        setE2eMode("locked");
-        setShowAccount(true);
-      } else {
-        setE2eMode("off");
-        engine.start();
-      }
-    })();
-
+    void initSync();
     return () => {
-      cancelled = true;
       off();
       engine.stop();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Unlock encryption on this device, then re-pull everything from scratch so
@@ -233,6 +229,7 @@ export function BoardWindow() {
           isDark={isDark}
           onEnableEncryption={handleEnableEncryption}
           onUnlock={handleUnlock}
+          onSessionChanged={initSync}
           onClose={() => setShowAccount(false)}
         />
       )}

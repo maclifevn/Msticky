@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { signInWithGoogle } from "../sync/clientAuth";
 import { clearSession, getEmail, getServerUrl, setServerUrl } from "../sync/config";
-import { getSyncEngine, type SyncStatus } from "../sync/syncEngine";
+import { type SyncStatus } from "../sync/syncEngine";
 import type { E2eMode } from "../sync/e2e";
 import { t, useLang, type Lang } from "../lib/i18n";
 
@@ -11,6 +11,7 @@ interface Props {
   isDark: boolean;
   onEnableEncryption: (passphrase: string) => Promise<void>;
   onUnlock: (passphrase: string) => Promise<void>;
+  onSessionChanged: () => void | Promise<void>;
   onClose: () => void;
 }
 
@@ -21,6 +22,7 @@ export function AccountPanel({
   isDark,
   onEnableEncryption,
   onUnlock,
+  onSessionChanged,
   onClose,
 }: Props) {
   const signedIn = status !== "signed-out";
@@ -41,7 +43,7 @@ export function AccountPanel({
     try {
       setServerUrl(server);
       await signInWithGoogle();
-      getSyncEngine().reconnectNow();
+      await onSessionChanged();
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -52,7 +54,7 @@ export function AccountPanel({
 
   const signOut = () => {
     clearSession();
-    getSyncEngine().reconnectNow();
+    void onSessionChanged();
     onClose();
   };
 
