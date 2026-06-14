@@ -1,5 +1,8 @@
 import { start, onUrl, cancel } from "@fabianlars/tauri-plugin-oauth";
 import { openUrl } from "@tauri-apps/plugin-opener";
+// Route the worker call through Rust (native HTTP). The webview's own fetch is
+// blocked from the custom `tauri://` origin to remote HTTPS ("Load failed").
+import { fetch as tauriFetch } from "@tauri-apps/plugin-http";
 import { GOOGLE_CLIENT_ID, getServerUrl, setSession } from "./config";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -83,7 +86,7 @@ export async function signInWithGoogle(): Promise<void> {
     await openUrl(authUrl);
     const code = await codePromise;
 
-    const res = await fetch(`${getServerUrl()}/auth/google`, {
+    const res = await tauriFetch(`${getServerUrl()}/auth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ code, codeVerifier, redirectUri }),

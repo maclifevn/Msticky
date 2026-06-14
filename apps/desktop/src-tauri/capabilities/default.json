@@ -36,6 +36,10 @@
     "autostart:allow-is-enabled",
     "oauth:allow-start",
     "oauth:allow-cancel",
-    "opener:default"
+    "opener:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://msticky-sync.mac-dda.workers.dev/*" }]
+    }
   ]
 }
