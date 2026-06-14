@@ -8,19 +8,14 @@
     {
       "binding": "DB",
       "database_name": "msticky",
-      // replace with the id from `wrangler d1 create msticky` for remote deploys;
-      // any value works for local dev (state lives under .wrangler/).
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "e1b44ad6-6de1-4c98-86c4-abc7b7fdec08"
     }
   ],
   "durable_objects": {
     "bindings": [{ "name": "USER_DO", "class_name": "UserDO" }]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserDO"] }],
-  "vars": {
-    // set to "0" in production; "1" returns the login code in the API response
-    // so you can sign in during local dev without wiring up email.
-    "DEV_RETURN_CODE": "1"
-  }
-  // JWT_SECRET is a secret: `wrangler secret put JWT_SECRET`
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserDO"] }]
+  // Secrets (set via `wrangler secret put`):
+  //   JWT_SECRET          — random string used to sign session tokens
+  //   ACCOUNT_PASSPHRASE  — the shared password every device signs in with
 }

@@ -1,17 +1,22 @@
-import {
-  authRequestSchema,
-  authVerifySchema,
-  opSchema,
-  type Note,
-} from "@msticky/shared";
+import { authLoginSchema, opSchema, type Note } from "@msticky/shared";
 import type { Env } from "./env";
-import { generateCode, signJwt, tokenFromRequest, verifyJwt } from "./auth";
+import { signJwt, tokenFromRequest, verifyJwt } from "./auth";
 import { notesSince, upsertNote } from "./notesRepo";
 
 export { UserDO } from "./userDO";
 
-const CODE_TTL_MS = 10 * 60 * 1000;
 const TOKEN_TTL_S = 30 * 24 * 60 * 60; // 30 days
+
+/** Length-independent string compare to avoid leaking the passphrase by timing. */
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -37,34 +42,12 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     try {
-      // ── Auth ────────────────────────────────────────────────────────────
-      if (url.pathname === "/auth/request" && req.method === "POST") {
-        const { email } = authRequestSchema.parse(await req.json());
-        const code = generateCode();
-        await env.DB.prepare(
-          `INSERT INTO auth_codes (email, code, expires_at) VALUES (?1, ?2, ?3)
-           ON CONFLICT(email) DO UPDATE SET code=?2, expires_at=?3`,
-        )
-          .bind(email, code, Date.now() + CODE_TTL_MS)
-          .run();
-
-        await sendLoginEmail(env, email, code);
-        // In dev we hand the code straight back so you can sign in without email.
-        return json(env.DEV_RETURN_CODE === "1" ? { ok: true, code } : { ok: true });
-      }
-
-      if (url.pathname === "/auth/verify" && req.method === "POST") {
-        const { email, code } = authVerifySchema.parse(await req.json());
-        const row = await env.DB.prepare(
-          "SELECT code, expires_at FROM auth_codes WHERE email = ?1",
-        )
-          .bind(email)
-          .first<{ code: string; expires_at: number }>();
-        if (!row || row.code !== code || row.expires_at < Date.now()) {
-          return json({ error: "invalid_or_expired_code" }, 401);
+      // ── Auth: email + shared passphrase → JWT ─────────────────────────────
+      if (url.pathname === "/auth/login" && req.method === "POST") {
+        const { email, passphrase } = authLoginSchema.parse(await req.json());
+        if (!env.ACCOUNT_PASSPHRASE || !timingSafeEqual(passphrase, env.ACCOUNT_PASSPHRASE)) {
+          return json({ error: "invalid_passphrase" }, 401);
         }
-        await env.DB.prepare("DELETE FROM auth_codes WHERE email = ?1").bind(email).run();
-
         const userId = await ensureUser(env, email);
         const token = await signJwt(
           { sub: userId, email, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_S },
@@ -126,22 +109,6 @@ async function ensureUser(env: Env, email: string): Promise<string> {
     .bind(id, email, Date.now())
     .run();
   return id;
-}
-
-/**
- * Deliver the login code. Wire this to Cloudflare Email Routing / Email Service
- * for production (see the cloudflare-email-service skill). In dev with
- * DEV_RETURN_CODE=1 the code also comes back in the API response, so this is a
- * no-op fallback rather than a hard dependency.
- */
-async function sendLoginEmail(env: Env, email: string, code: string): Promise<void> {
-  if (env.DEV_RETURN_CODE === "1") {
-    console.log(`[msticky] login code for ${email}: ${code}`);
-    return;
-  }
-  // TODO(M2+): send via Email binding. Intentionally left unimplemented so a
-  // missing email setup never blocks auth during early development.
-  console.log(`[msticky] (email send not configured) code for ${email}`);
 }
 
 // Re-exported so the Note type is reachable for downstream typing if needed.

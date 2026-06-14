@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { requestCode, verifyCode } from "../sync/clientAuth";
+import { login } from "../sync/clientAuth";
 import {
   clearSession,
   getEmail,
@@ -19,44 +19,25 @@ export function AccountPanel({ status, isDark, onClose }: Props) {
   const signedIn = status !== "signed-out";
   const [email, setEmail] = useState(getEmail() ?? "");
   const [server, setServer] = useState(getServerUrl());
-  const [code, setCode] = useState("");
-  const [stage, setStage] = useState<"email" | "code">("email");
+  const [passphrase, setPassphrase] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
 
   const card = isDark ? "bg-slate-800 text-slate-100" : "bg-white text-slate-800";
   const field = isDark
     ? "bg-slate-900 border-slate-700"
     : "bg-slate-50 border-slate-200";
 
-  const send = async () => {
+  const signIn = async () => {
     setBusy(true);
     setError(null);
     try {
       setServerUrl(server);
-      const { devCode } = await requestCode(email);
-      setStage("code");
-      if (devCode) {
-        setHint(`Dev code: ${devCode}`);
-        setCode(devCode);
-      }
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const verify = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await verifyCode(email, code);
+      await login(email, passphrase);
       getSyncEngine().reconnectNow();
       onClose();
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -101,7 +82,7 @@ export function AccountPanel({ status, isDark, onClose }: Props) {
               value={server}
               onChange={(e) => setServer(e.target.value)}
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${field}`}
-              placeholder="http://localhost:8787"
+              placeholder="https://msticky-sync.<you>.workers.dev"
             />
 
             <label className="block text-xs font-medium opacity-70">Email</label>
@@ -109,38 +90,35 @@ export function AccountPanel({ status, isDark, onClose }: Props) {
               value={email}
               type="email"
               onChange={(e) => setEmail(e.target.value)}
-              disabled={stage === "code"}
               className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${field}`}
               placeholder="you@example.com"
             />
 
-            {stage === "code" && (
-              <>
-                <label className="block text-xs font-medium opacity-70">
-                  Login code
-                </label>
-                <input
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  className={`w-full rounded-lg border px-3 py-2 text-sm tracking-widest outline-none ${field}`}
-                  placeholder="123456"
-                />
-              </>
-            )}
+            <label className="block text-xs font-medium opacity-70">
+              Account passphrase
+            </label>
+            <input
+              value={passphrase}
+              type="password"
+              onChange={(e) => setPassphrase(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && email && passphrase) void signIn();
+              }}
+              className={`w-full rounded-lg border px-3 py-2 text-sm outline-none ${field}`}
+              placeholder="shared secret"
+            />
 
-            {hint && <p className="text-xs text-emerald-500">{hint}</p>}
+            <p className="text-xs opacity-50">
+              Use the same email + passphrase on every device to sync them.
+            </p>
             {error && <p className="text-xs text-red-500">{error}</p>}
 
             <button
-              disabled={busy || !email}
-              onClick={stage === "email" ? send : verify}
+              disabled={busy || !email || !passphrase}
+              onClick={signIn}
               className="w-full rounded-lg bg-amber-400 py-2 text-sm font-medium text-amber-950 hover:bg-amber-300 disabled:opacity-50"
             >
-              {busy
-                ? "…"
-                : stage === "email"
-                  ? "Send login code"
-                  : "Verify & sign in"}
+              {busy ? "…" : "Sign in"}
             </button>
           </div>
         )}

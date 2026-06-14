@@ -1,7 +1,8 @@
 export interface Env {
   DB: D1Database;
   USER_DO: DurableObjectNamespace;
+  /** Secret used to sign/verify JWTs. */
   JWT_SECRET: string;
-  /** "1" during local dev: login codes are returned in the API response. */
-  DEV_RETURN_CODE?: string;
+  /** Shared account passphrase that gates sign-in (a Worker secret). */
+  ACCOUNT_PASSPHRASE: string;
 }

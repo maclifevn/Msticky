@@ -81,11 +81,13 @@ export function mergeNote(local: Note | undefined, incoming: Note): Note {
   return incoming.updatedAt >= local.updatedAt ? incoming : local;
 }
 
-/** REST auth payloads. */
-export const authRequestSchema = z.object({ email: z.string().email() });
-export const authVerifySchema = z.object({
+/**
+ * Auth payload. A shared account passphrase (a Worker secret) gates access; the
+ * email selects which notes namespace you join, so signing in with the same
+ * email on every device syncs them together. No email delivery required.
+ */
+export const authLoginSchema = z.object({
   email: z.string().email(),
-  code: z.string().min(4),
+  passphrase: z.string().min(1),
 });
-export type AuthRequest = z.infer<typeof authRequestSchema>;
-export type AuthVerify = z.infer<typeof authVerifySchema>;
+export type AuthLogin = z.infer<typeof authLoginSchema>;

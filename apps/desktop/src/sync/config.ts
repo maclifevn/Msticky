@@ -9,8 +9,11 @@ const KEYS = {
   lastSync: "msticky.lastSyncAt",
 };
 
+/** Default points at the deployed worker; override per-machine in the panel. */
+const DEFAULT_SERVER_URL = "https://msticky-sync.mac-dda.workers.dev";
+
 export function getServerUrl(): string {
-  return localStorage.getItem(KEYS.server) || "http://localhost:8787";
+  return localStorage.getItem(KEYS.server) || DEFAULT_SERVER_URL;
 }
 export function setServerUrl(url: string): void {
   localStorage.setItem(KEYS.server, url.replace(/\/$/, ""));
