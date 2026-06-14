@@ -108,39 +108,40 @@ export function NoteWindow({ id }: { id: string }) {
 
   return (
     <div
-      className="flex h-screen w-screen flex-col overflow-hidden rounded-xl shadow-lg"
+      className="flex h-screen w-screen flex-col overflow-hidden rounded-lg shadow-lg"
       style={{ background: s.bg, color: s.fg }}
       data-color={note.color}
     >
-      {/* Toolbar / drag handle */}
+      {/* Thin Stickies-style title bar (drag handle). Close on the left, actions
+          on the right; controls sit faint and brighten on hover. */}
       <div
         data-tauri-drag-region
-        className="drag-region group flex items-center gap-0.5 px-1.5 py-1"
-        style={{ background: s.accent + "55" }}
+        className="drag-region group flex items-center gap-px border-b border-black/5 px-1 py-[3px]"
+        style={{ background: s.accent }}
       >
-        <ToolButton title="Pin to desktop" active={note.pinned} onClick={togglePin}>
-          <PinIcon />
-        </ToolButton>
-        <ToolButton title="Always on top" active={note.alwaysOnTop} onClick={toggleTop}>
-          <TopIcon />
-        </ToolButton>
-        <ToolButton title="Color" active={showColors} onClick={() => setShowColors((v) => !v)}>
-          <PaletteIcon />
+        <ToolButton title="Close" onClick={() => void closeThisWindow()}>
+          <CloseIcon width={12} height={12} />
         </ToolButton>
 
         <div className="flex-1" />
 
+        <ToolButton title="Pin to desktop" active={note.pinned} onClick={togglePin}>
+          <PinIcon width={13} height={13} />
+        </ToolButton>
+        <ToolButton title="Always on top" active={note.alwaysOnTop} onClick={toggleTop}>
+          <TopIcon width={13} height={13} />
+        </ToolButton>
+        <ToolButton title="Color" active={showColors} onClick={() => setShowColors((v) => !v)}>
+          <PaletteIcon width={13} height={13} />
+        </ToolButton>
         <ToolButton title="New note" onClick={newNote}>
-          <PlusIcon />
+          <PlusIcon width={13} height={13} />
         </ToolButton>
         <ToolButton title="Open board" onClick={() => void openBoard()}>
-          <BoardIcon />
+          <BoardIcon width={13} height={13} />
         </ToolButton>
         <ToolButton title="Delete note" onClick={removeNote}>
-          <TrashIcon />
-        </ToolButton>
-        <ToolButton title="Close" onClick={() => void closeThisWindow()}>
-          <CloseIcon />
+          <TrashIcon width={13} height={13} />
         </ToolButton>
       </div>
 
@@ -181,8 +182,8 @@ function ToolButton({
     <button
       title={title}
       onClick={onClick}
-      className={`no-drag flex h-6 w-6 items-center justify-center rounded-md opacity-0 transition group-hover:opacity-70 hover:!opacity-100 hover:bg-black/10 ${
-        active ? "!opacity-100 bg-black/15" : ""
+      className={`no-drag flex h-[19px] w-[19px] items-center justify-center rounded-[5px] opacity-40 transition hover:bg-black/10 hover:opacity-100 ${
+        active ? "bg-black/15 !opacity-100" : ""
       }`}
     >
       {children}
