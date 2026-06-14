@@ -219,7 +219,7 @@ function NoteCard({ note, theme }: { note: Note; theme: "light" | "dark" }) {
       style={{ background: s.bg, color: s.fg }}
       onClick={() => void openNoteWindow(note.id)}
     >
-      <div className="line-clamp-1 text-xs font-semibold">{noteTitle(note.content)}</div>
+      <div className="line-clamp-1 pr-12 text-xs font-semibold">{noteTitle(note.content)}</div>
       <div className="mt-1 flex-1 overflow-hidden whitespace-pre-wrap text-[11px] leading-snug opacity-80">
         {note.content.slice(0, 240) || "Empty note"}
       </div>
@@ -280,7 +280,7 @@ function CardBtn({
     <button
       title={title}
       onClick={onClick}
-      className="flex h-6 w-6 items-center justify-center rounded-md bg-black/15 hover:bg-black/30"
+      className="flex h-5 w-5 items-center justify-center rounded-md bg-black/15 hover:bg-black/30"
     >
       {children}
     </button>
