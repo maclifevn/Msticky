@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Note } from "@msticky/shared";
 import { useNotes } from "../store/hooks";
 import { createNote, archiveNote, deleteNote } from "../store/actions";
-import { openNoteWindow } from "../lib/native";
+import { openNoteWindow, confirmDeleteNote } from "../lib/native";
 import { swatch } from "../lib/colors";
 import { useTheme } from "../lib/theme";
 import { noteTitle } from "../lib/markdown";
@@ -235,9 +235,9 @@ function NoteCard({ note, theme }: { note: Note; theme: "light" | "dark" }) {
         </CardBtn>
         <CardBtn
           title="Delete"
-          onClick={(e) => {
+          onClick={async (e) => {
             e.stopPropagation();
-            void deleteNote(note.id);
+            if (await confirmDeleteNote()) void deleteNote(note.id);
           }}
         >
           <TrashIcon width={13} height={13} />

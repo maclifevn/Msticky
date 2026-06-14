@@ -10,6 +10,7 @@ import {
   setPinned,
   setAlwaysOnTop,
   closeThisWindow,
+  confirmDeleteNote,
 } from "../lib/native";
 import { swatch } from "../lib/colors";
 import { useTheme } from "../lib/theme";
@@ -102,6 +103,7 @@ export function NoteWindow({ id }: { id: string }) {
     await openNoteWindow(n.id);
   };
   const removeNote = async () => {
+    if (!(await confirmDeleteNote())) return;
     await deleteNote(id);
     await closeThisWindow();
   };

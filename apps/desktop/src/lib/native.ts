@@ -1,6 +1,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { ask } from "@tauri-apps/plugin-dialog";
+
+/** Native confirm dialog before a destructive delete. Returns true to proceed. */
+export function confirmDeleteNote(): Promise<boolean> {
+  return ask("This note will be removed on all your signed-in devices.", {
+    title: "Delete note?",
+    kind: "warning",
+    okLabel: "Delete",
+    cancelLabel: "Cancel",
+  });
+}
 
 /** Cross-window event fired whenever any note is created/updated/deleted. */
 export const NOTE_CHANGED = "msticky://note-changed";

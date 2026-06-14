@@ -160,6 +160,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_oauth::init())
         .plugin(tauri_plugin_http::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(build_global_shortcut())
         .setup(|app| {
             let handle = app.handle().clone();

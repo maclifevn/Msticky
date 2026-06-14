@@ -37,6 +37,8 @@
     "oauth:allow-start",
     "oauth:allow-cancel",
     "opener:default",
+    "dialog:default",
+    "dialog:allow-ask",
     {
       "identifier": "http:default",
       "allow": [{ "url": "https://msticky-sync.mac-dda.workers.dev/*" }]
