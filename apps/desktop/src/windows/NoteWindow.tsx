@@ -112,7 +112,11 @@ export function NoteWindow({ id }: { id: string }) {
 
   return (
     <div
-      className="flex h-screen w-screen flex-col overflow-hidden rounded-lg shadow-lg"
+      className={`flex h-screen w-screen flex-col overflow-hidden ${
+        // Rounded/shadow only where the window is transparent (macOS); on the
+        // opaque Windows window, rounding would leave white corners.
+        navigator.userAgent.includes("Mac") ? "rounded-lg shadow-lg" : ""
+      }`}
       style={{ background: s.bg, color: s.fg }}
       data-color={note.color}
     >

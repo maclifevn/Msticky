@@ -19,7 +19,10 @@ fn create_note_window(app: &AppHandle, id: &str) -> tauri::Result<()> {
     WebviewWindowBuilder::new(app, &label, WebviewUrl::App("index.html".into()))
         .title("Note")
         .decorations(false)
-        .transparent(true)
+        // Transparency works well on macOS (rounded paper look). On Windows the
+        // WebView2 transparent window renders blank/uninteractive, so keep note
+        // windows opaque there.
+        .transparent(cfg!(target_os = "macos"))
         .resizable(true)
         .inner_size(280.0, 280.0)
         .min_inner_size(180.0, 150.0)
