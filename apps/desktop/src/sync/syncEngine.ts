@@ -194,6 +194,9 @@ export class SyncEngine {
    *  notes get re-stored as ciphertext on the server). */
   async repushAll(): Promise<void> {
     for (const note of await getAllNotes()) {
+      // Never re-encrypt a locked placeholder — that would overwrite the real
+      // ciphertext on the server with garbage.
+      if (note.content.startsWith("🔒")) continue;
       this.enqueue({ opId: crypto.randomUUID(), deviceId: getDeviceId(), note });
     }
     void this.flush();

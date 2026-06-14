@@ -141,6 +141,11 @@ export async function currentMode(): Promise<E2eMode> {
   return "locked";
 }
 
+/** Whether the account has encryption configured on the server. */
+export async function isConfigured(): Promise<boolean> {
+  return (await getServerConfig()).salt != null;
+}
+
 /** On startup: if E2E is on and the key is cached on this device, unlock silently. */
 export async function tryUnlockFromKeychain(): Promise<boolean> {
   const cached = await loadCachedKey();

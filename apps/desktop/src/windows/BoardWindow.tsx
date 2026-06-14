@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { Note } from "@msticky/shared";
 import { useNotes } from "../store/hooks";
+import { getAllNotes } from "../store/repo";
 import { createNote, archiveNote, deleteNote } from "../store/actions";
 import { openNoteWindow, confirmDeleteNote } from "../lib/native";
 import { swatch } from "../lib/colors";
@@ -10,7 +11,7 @@ import { noteTitle } from "../lib/markdown";
 import { getSyncEngine, type SyncStatus } from "../sync/syncEngine";
 import { getToken, setLastSyncAt } from "../sync/config";
 import {
-  currentMode,
+  isConfigured,
   enableEncryption,
   tryUnlockFromKeychain,
   unlock as e2eUnlock,
@@ -58,25 +59,30 @@ export function BoardWindow() {
         engine.start();
         return;
       }
-      // Cached key on this device → unlock silently and sync.
+      // Cached key on this device → unlock silently and re-pull (heals any
+      // placeholders that synced before the key was available).
       if (await tryUnlockFromKeychain()) {
-        if (!cancelled) setE2eMode("unlocked");
+        if (cancelled) return;
+        setE2eMode("unlocked");
+        setLastSyncAt(0);
         engine.start();
         return;
       }
+      // Not unlocked here: is encryption on for this account? Prefer the server;
+      // if offline, infer from any encrypted note already in the local cache.
+      let on: boolean;
       try {
-        const mode = await currentMode(); // "off" | "locked" (no cached key)
-        if (cancelled) return;
-        if (mode === "off") {
-          setE2eMode("off");
-          engine.start();
-        } else {
-          setE2eMode("locked");
-          setShowAccount(true); // prompt the user to unlock
-        }
+        on = await isConfigured();
       } catch {
-        // Offline / server unreachable: assume the common case (no E2E) and sync.
-        if (!cancelled) setE2eMode("off");
+        on = (await getAllNotes()).some((n) => n.content.startsWith("enc:v1:"));
+      }
+      if (cancelled) return;
+      if (on) {
+        // Locked: don't sync (would clobber local). Prompt to unlock.
+        setE2eMode("locked");
+        setShowAccount(true);
+      } else {
+        setE2eMode("off");
         engine.start();
       }
     })();
@@ -88,13 +94,6 @@ export function BoardWindow() {
     };
   }, []);
 
-  // Enable encryption (first device): set up, then re-encrypt existing notes.
-  const handleEnableEncryption = async (passphrase: string) => {
-    await enableEncryption(passphrase);
-    setE2eMode("unlocked");
-    await getSyncEngine().repushAll();
-  };
-
   // Unlock encryption on this device, then re-pull everything from scratch so
   // any notes that synced while locked get decrypted (and placeholders healed).
   const handleUnlock = async (passphrase: string) => {
@@ -102,6 +101,19 @@ export function BoardWindow() {
     setE2eMode("unlocked");
     setLastSyncAt(0);
     getSyncEngine().start();
+  };
+
+  // Enable encryption (first device): set up, then re-encrypt existing notes.
+  // If the account is already configured (e.g. enabled elsewhere), this is
+  // really an unlock — route there so we never repush over existing ciphertext.
+  const handleEnableEncryption = async (passphrase: string) => {
+    if (await isConfigured()) {
+      await handleUnlock(passphrase);
+      return;
+    }
+    await enableEncryption(passphrase);
+    setE2eMode("unlocked");
+    await getSyncEngine().repushAll();
   };
 
   const filtered = useMemo(() => {
