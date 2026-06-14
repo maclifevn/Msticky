@@ -1,0 +1,32 @@
+# deps
+node_modules/
+.pnpm-store/
+
+# build output
+dist/
+build/
+*.tsbuildinfo
+
+# Tauri / Rust
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/
+
+# Cloudflare
+.wrangler/
+.dev.vars
+
+# env & secrets
+.env
+.env.local
+*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# local tooling state
+.claude/
+
+# logs
+*.log
+npm-debug.log*

@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+/* ── Theme tokens ──────────────────────────────────────────────────────────
+   Paper colors per note palette key, with light + dark variants. The note
+   window reads `data-color` and the document carries `data-theme`. */
+@theme {
+  --font-hand: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  color-scheme: light dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-hand);
+  /* transparent so the rounded note window shows the OS behind its corners */
+  background: transparent;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+/* Let the whole note be a drag handle except interactive bits. */
+.drag-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* Thin, unobtrusive scrollbars inside notes. */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgb(0 0 0 / 0.18);
+  border-radius: 9999px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Checklist checkboxes rendered from markdown. */
+.note-md ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+.note-md li {
+  margin: 0.1rem 0;
+}
+.note-md a {
+  text-decoration: underline;
+}
+.note-md h1,
+.note-md h2,
+.note-md h3 {
+  font-weight: 700;
+  margin: 0.3rem 0 0.2rem;
+}
+.note-md code {
+  background: rgb(0 0 0 / 0.08);
+  padding: 0 0.25rem;
+  border-radius: 4px;
+}
