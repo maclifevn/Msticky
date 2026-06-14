@@ -12,6 +12,13 @@ const KEYS = {
 /** Default points at the deployed worker; override per-machine in the panel. */
 const DEFAULT_SERVER_URL = "https://msticky-sync.mac-dda.workers.dev";
 
+/**
+ * Public Google OAuth client id (Desktop type). Not a secret — the client
+ * secret lives only in the worker. Replace after creating the OAuth client.
+ */
+export const GOOGLE_CLIENT_ID =
+  "902036415026-qki2nu6jlcm8c4rrrfhhb4lrbtup3vja.apps.googleusercontent.com";
+
 export function getServerUrl(): string {
   return localStorage.getItem(KEYS.server) || DEFAULT_SERVER_URL;
 }

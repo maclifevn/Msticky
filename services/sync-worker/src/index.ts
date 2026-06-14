@@ -1,21 +1,58 @@
-import { authLoginSchema, opSchema, type Note } from "@msticky/shared";
+import { googleAuthSchema, opSchema, type Note } from "@msticky/shared";
 import type { Env } from "./env";
-import { signJwt, tokenFromRequest, verifyJwt } from "./auth";
+import { decodeJwtPayload, signJwt, tokenFromRequest, verifyJwt } from "./auth";
 import { notesSince, upsertNote } from "./notesRepo";
 
 export { UserDO } from "./userDO";
 
 const TOKEN_TTL_S = 30 * 24 * 60 * 60; // 30 days
 
-/** Length-independent string compare to avoid leaking the passphrase by timing. */
-function timingSafeEqual(a: string, b: string): boolean {
-  const enc = new TextEncoder();
-  const ab = enc.encode(a);
-  const bb = enc.encode(b);
-  if (ab.length !== bb.length) return false;
-  let diff = 0;
-  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
-  return diff === 0;
+const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+const GOOGLE_ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
+
+interface GoogleIdClaims {
+  iss: string;
+  aud: string;
+  exp: number;
+  email?: string;
+  email_verified?: boolean | string;
+  sub?: string;
+}
+
+/**
+ * Exchange a PKCE authorization code for Google tokens and return the verified
+ * email. Throws on any failure (bad code, wrong audience, unverified email).
+ */
+async function verifyGoogleCode(
+  env: Env,
+  code: string,
+  codeVerifier: string,
+  redirectUri: string,
+): Promise<string> {
+  const res = await fetch(GOOGLE_TOKEN_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      code_verifier: codeVerifier,
+      redirect_uri: redirectUri,
+      client_id: env.GOOGLE_CLIENT_ID,
+      client_secret: env.GOOGLE_CLIENT_SECRET,
+    }),
+  });
+  if (!res.ok) throw new Error(`google_token_exchange_failed_${res.status}`);
+  const tokens = (await res.json()) as { id_token?: string };
+  if (!tokens.id_token) throw new Error("no_id_token");
+
+  const claims = decodeJwtPayload<GoogleIdClaims>(tokens.id_token);
+  if (!claims) throw new Error("bad_id_token");
+  if (claims.aud !== env.GOOGLE_CLIENT_ID) throw new Error("aud_mismatch");
+  if (!GOOGLE_ISSUERS.has(claims.iss)) throw new Error("iss_mismatch");
+  if (claims.exp * 1000 < Date.now()) throw new Error("id_token_expired");
+  const verified = claims.email_verified === true || claims.email_verified === "true";
+  if (!claims.email || !verified) throw new Error("email_not_verified");
+  return claims.email;
 }
 
 const CORS = {
@@ -42,18 +79,23 @@ export default {
     if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
 
     try {
-      // ── Auth: email + shared passphrase → JWT ─────────────────────────────
-      if (url.pathname === "/auth/login" && req.method === "POST") {
-        const { email, passphrase } = authLoginSchema.parse(await req.json());
-        if (!env.ACCOUNT_PASSPHRASE || !timingSafeEqual(passphrase, env.ACCOUNT_PASSPHRASE)) {
-          return json({ error: "invalid_passphrase" }, 401);
+      // ── Auth: Google OAuth code → verified email → session JWT ────────────
+      if (url.pathname === "/auth/google" && req.method === "POST") {
+        const { code, codeVerifier, redirectUri } = googleAuthSchema.parse(
+          await req.json(),
+        );
+        let email: string;
+        try {
+          email = await verifyGoogleCode(env, code, codeVerifier, redirectUri);
+        } catch (e) {
+          return json({ error: "google_auth_failed", detail: String(e) }, 401);
         }
         const userId = await ensureUser(env, email);
         const token = await signJwt(
           { sub: userId, email, exp: Math.floor(Date.now() / 1000) + TOKEN_TTL_S },
           env.JWT_SECRET,
         );
-        return json({ token, userId });
+        return json({ token, userId, email });
       }
 
       // ── WebSocket → per-user Durable Object ───────────────────────────────

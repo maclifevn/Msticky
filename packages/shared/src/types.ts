@@ -82,12 +82,14 @@ export function mergeNote(local: Note | undefined, incoming: Note): Note {
 }
 
 /**
- * Auth payload. A shared account passphrase (a Worker secret) gates access; the
- * email selects which notes namespace you join, so signing in with the same
- * email on every device syncs them together. No email delivery required.
+ * Auth payload. The desktop app runs the Google OAuth (PKCE, loopback) flow and
+ * sends the authorization `code` here; the worker exchanges it for a Google
+ * id_token, verifies it, and issues a session JWT scoped to the verified email.
+ * Each Google account is its own private notes namespace.
  */
-export const authLoginSchema = z.object({
-  email: z.string().email(),
-  passphrase: z.string().min(1),
+export const googleAuthSchema = z.object({
+  code: z.string().min(1),
+  codeVerifier: z.string().min(1),
+  redirectUri: z.string().url(),
 });
-export type AuthLogin = z.infer<typeof authLoginSchema>;
+export type GoogleAuth = z.infer<typeof googleAuthSchema>;

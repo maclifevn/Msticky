@@ -60,10 +60,21 @@ export async function verifyJwt(token: string, secret: string): Promise<JwtClaim
   }
 }
 
-/** 6-digit numeric login code. */
-export function generateCode(): string {
-  const n = crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000;
-  return n.toString().padStart(6, "0");
+/**
+ * Decode a JWT's payload WITHOUT verifying the signature. Safe for the Google
+ * id_token because we fetch it directly from Google's token endpoint over TLS
+ * (transport-trusted); callers still validate aud/iss/exp/email_verified.
+ */
+export function decodeJwtPayload<T = Record<string, unknown>>(
+  token: string,
+): T | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    return JSON.parse(dec.decode(b64urlDecode(parts[1]))) as T;
+  } catch {
+    return null;
+  }
 }
 
 /** Extract a bearer token from the Authorization header or `token` query param. */

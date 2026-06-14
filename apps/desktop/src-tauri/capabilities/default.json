@@ -33,6 +33,9 @@
     "autostart:default",
     "autostart:allow-enable",
     "autostart:allow-disable",
-    "autostart:allow-is-enabled"
+    "autostart:allow-is-enabled",
+    "oauth:default",
+    "opener:default",
+    "opener:allow-open-url"
   ]
 }

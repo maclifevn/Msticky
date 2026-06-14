@@ -16,6 +16,7 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["UserDO"] }]
   // Secrets (set via `wrangler secret put`):
-  //   JWT_SECRET          — random string used to sign session tokens
-  //   ACCOUNT_PASSPHRASE  — the shared password every device signs in with
+  //   JWT_SECRET            — random string used to sign session tokens
+  //   GOOGLE_CLIENT_ID      — OAuth client id (Desktop type)
+  //   GOOGLE_CLIENT_SECRET  — OAuth client secret
 }
