@@ -36,6 +36,6 @@
     "autostart:allow-is-enabled",
     "oauth:allow-start",
     "oauth:allow-cancel",
-    "opener:allow-open-url"
+    "opener:default"
   ]
 }
