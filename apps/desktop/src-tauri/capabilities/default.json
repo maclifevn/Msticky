@@ -2,7 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Capabilities for all Msticky windows (board + note windows).",
-  "windows": ["board", "note:*"],
+  "windows": ["board", "note-*"],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",

@@ -29,9 +29,9 @@ export function thisWindowLabel(): string {
   return getCurrentWindow().label;
 }
 
-/** `note:<id>` → id, else null. */
+/** `note-<id>` → id, else null. */
 export function noteIdFromLabel(label: string): string | null {
-  return label.startsWith("note:") ? label.slice("note:".length) : null;
+  return label.startsWith("note-") ? label.slice("note-".length) : null;
 }
 
 export async function announceNoteChanged(id: string): Promise<void> {

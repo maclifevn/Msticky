@@ -4,7 +4,10 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 // ── Window helpers ─────────────────────────────────────────────────────────
 
 fn note_label(id: &str) -> String {
-    format!("note:{id}")
+    // Use '-' not ':' — ':' is illegal in Windows paths and WebView2 derives a
+    // data-folder name from the label, so a ':' label yields a blank, hung note
+    // window on Windows.
+    format!("note-{id}")
 }
 
 /// Open (or focus) the floating window for a note. The React side reads the
