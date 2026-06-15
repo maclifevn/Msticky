@@ -1,4 +1,4 @@
-import { start, onUrl, cancel } from "@fabianlars/tauri-plugin-oauth";
+import { start, onUrl, onInvalidUrl, cancel } from "@fabianlars/tauri-plugin-oauth";
 import { openUrl } from "@tauri-apps/plugin-opener";
 // Route the worker call through Rust (native HTTP). The webview's own fetch is
 // blocked from the custom `tauri://` origin to remote HTTPS ("Load failed").
@@ -46,13 +46,61 @@ async function pkceChallenge(verifier: string): Promise<string> {
  *     returns our session JWT
  * Each Google account maps to its own private notes namespace.
  */
-export async function signInWithGoogle(): Promise<void> {
-  const port = await start({ response: DONE_HTML });
-  const redirectUri = `http://127.0.0.1:${port}`;
+export async function signInWithGoogle(
+  onStage?: (stage: string) => void,
+): Promise<void> {
+  const stage = (s: string) => onStage?.(s);
 
   const codeVerifier = randomString(64);
   const codeChallenge = await pkceChallenge(codeVerifier);
   const state = randomString(24);
+
+  // Deferred resolved by the loopback redirect handler.
+  let resolveCode!: (c: string) => void;
+  let rejectCode!: (e: unknown) => void;
+  let settled = false;
+  const codePromise = new Promise<string>((res, rej) => {
+    resolveCode = (c) => {
+      if (!settled) {
+        settled = true;
+        res(c);
+      }
+    };
+    rejectCode = (e) => {
+      if (!settled) {
+        settled = true;
+        rej(e);
+      }
+    };
+  });
+
+  // Extract the authorization code from the loopback redirect URL. Some
+  // platforms route the captured URL through onInvalidUrl instead of onUrl, so
+  // both feed this same handler.
+  const handleRedirect = (raw: string) => {
+    let u: URL;
+    try {
+      u = new URL(raw);
+    } catch {
+      return; // not a URL (onInvalidUrl may pass an error string) — ignore
+    }
+    const err = u.searchParams.get("error");
+    if (err) return rejectCode(new Error(err));
+    const c = u.searchParams.get("code");
+    if (!c) return; // not the redirect we care about (e.g. favicon) — ignore
+    if (u.searchParams.get("state") !== state) {
+      return rejectCode(new Error("State mismatch"));
+    }
+    stage("exchanging");
+    resolveCode(c);
+  };
+
+  // Register BOTH listeners BEFORE start() so we can't miss an early redirect.
+  const unlistenUrl = await onUrl(handleRedirect);
+  const unlistenInvalid = await onInvalidUrl(handleRedirect);
+
+  const port = await start({ response: DONE_HTML });
+  const redirectUri = `http://127.0.0.1:${port}`;
   const authUrl =
     `${GOOGLE_AUTH_URL}?` +
     new URLSearchParams({
@@ -66,36 +114,18 @@ export async function signInWithGoogle(): Promise<void> {
       prompt: "select_account",
     }).toString();
 
-  // Deferred resolved by the loopback redirect handler.
-  let resolveCode!: (c: string) => void;
-  let rejectCode!: (e: unknown) => void;
-  const codePromise = new Promise<string>((res, rej) => {
-    resolveCode = res;
-    rejectCode = rej;
-  });
-
-  const unlisten = await onUrl((url) => {
-    try {
-      const u = new URL(url);
-      const err = u.searchParams.get("error");
-      if (err) throw new Error(err);
-      if (u.searchParams.get("state") !== state) throw new Error("State mismatch");
-      const c = u.searchParams.get("code");
-      if (!c) throw new Error("No authorization code");
-      resolveCode(c);
-    } catch (e) {
-      rejectCode(e);
-    }
-  });
   const timer = window.setTimeout(
     () => rejectCode(new Error("Sign-in timed out")),
     LOGIN_TIMEOUT_MS,
   );
 
   try {
+    stage("opening-browser");
     await openUrl(authUrl);
+    stage("waiting");
     const code = await codePromise;
 
+    stage("exchanging");
     const res = await tauriFetch(`${getServerUrl()}/auth/google`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -112,6 +142,7 @@ export async function signInWithGoogle(): Promise<void> {
       email: string;
     };
     setSession(body.token, body.userId, body.email);
+    stage("done");
     // Bring the app back to the front so the user doesn't have to leave the
     // browser tab manually.
     try {
@@ -124,7 +155,8 @@ export async function signInWithGoogle(): Promise<void> {
     }
   } finally {
     window.clearTimeout(timer);
-    unlisten();
+    unlistenUrl();
+    unlistenInvalid();
     await cancel(port).catch(() => {});
   }
 }

@@ -30,7 +30,15 @@ export function AccountPanel({
   const [server, setServer] = useState(getServerUrl());
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const stageText = (s: string): string => {
+    if (s === "opening-browser") return t("openingBrowser", lang);
+    if (s === "waiting") return t("authWaiting", lang);
+    if (s === "exchanging") return t("authExchanging", lang);
+    return "";
+  };
 
   const card = isDark ? "bg-slate-800 text-slate-100" : "bg-white text-slate-800";
   const field = isDark
@@ -40,15 +48,17 @@ export function AccountPanel({
   const signIn = async () => {
     setBusy(true);
     setError(null);
+    setStage(null);
     try {
       setServerUrl(server);
-      await signInWithGoogle();
+      await signInWithGoogle(setStage);
       await onSessionChanged();
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setStage(null);
     }
   };
 
@@ -103,7 +113,11 @@ export function AccountPanel({
               className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               <GoogleGlyph />
-              {busy ? t("openingBrowser", lang) : t("signInGoogle", lang)}
+              {busy
+                ? stage
+                  ? stageText(stage)
+                  : t("openingBrowser", lang)
+                : t("signInGoogle", lang)}
             </button>
 
             {error && <p className="text-xs text-red-500">{error}</p>}
