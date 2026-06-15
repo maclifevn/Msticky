@@ -17,11 +17,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # macOS is temporarily disabled to conserve Actions minutes while we
-          # iterate on a Windows-only bug (the macOS universal build bills at
-          # 10× on private repos). Re-enable this entry for the real release:
-          # - platform: macos-latest
-          #   args: "--target universal-apple-darwin"
+          - platform: macos-latest
+            args: "--target universal-apple-darwin"
           - platform: windows-latest
             args: ""
 
