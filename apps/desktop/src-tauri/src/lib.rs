@@ -49,20 +49,36 @@ fn open_board_window(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+// On Windows, WebviewWindowBuilder::build() DEADLOCKS when called on the
+// event-loop thread (synchronous commands, tray/shortcut handlers) — the webview
+// then never initializes and the window stays blank/frozen. Building from a
+// spawned thread (or an async command) sidesteps the deadlock. See wry#583.
 fn new_note_window(app: &AppHandle) {
-    let id = uuid::Uuid::new_v4().to_string();
-    let _ = create_note_window(app, &id);
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let id = uuid::Uuid::new_v4().to_string();
+        let _ = create_note_window(&app, &id);
+    });
+}
+
+fn spawn_open_board(app: &AppHandle) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let _ = open_board_window(&app);
+    });
 }
 
 // ── Commands invoked from JS ────────────────────────────────────────────────
 
+// `async` so Tauri runs these off the event-loop thread — required on Windows,
+// where building a webview window on that thread deadlocks (see above).
 #[tauri::command]
-fn open_note_window(app: AppHandle, id: String) -> Result<(), String> {
+async fn open_note_window(app: AppHandle, id: String) -> Result<(), String> {
     create_note_window(&app, &id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn open_board(app: AppHandle) -> Result<(), String> {
+async fn open_board(app: AppHandle) -> Result<(), String> {
     open_board_window(&app).map_err(|e| e.to_string())
 }
 
@@ -164,7 +180,7 @@ pub fn run() {
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            let _ = open_board_window(app);
+            spawn_open_board(app);
         }));
     }
 
@@ -264,9 +280,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id.as_ref() {
             "new" => new_note_window(app),
-            "board" => {
-                let _ = open_board_window(app);
-            }
+            "board" => spawn_open_board(app),
             "quit" => app.exit(0),
             _ => {}
         })
