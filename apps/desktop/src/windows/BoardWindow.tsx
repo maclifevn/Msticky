@@ -50,18 +50,18 @@ export function BoardWindow() {
   // and again whenever the session changes (sign in/out). If E2E is on but this
   // device isn't unlocked, we don't sync — pulling ciphertext we can't read
   // would clobber the local plaintext.
-  const initSync = async () => {
+  const initSync = async (): Promise<E2eMode> => {
     const engine = getSyncEngine();
     if (!getToken()) {
       setE2eMode("off");
       await engine.start(); // connects, finds no token → signed-out
-      return;
+      return "off";
     }
     if (await tryUnlockFromKeychain()) {
       setE2eMode("unlocked");
       setLastSyncAt(0); // re-pull so anything synced while locked decrypts
       await engine.start();
-      return;
+      return "unlocked";
     }
     let on: boolean;
     try {
@@ -72,11 +72,12 @@ export function BoardWindow() {
     if (on) {
       setE2eMode("locked");
       engine.stop(); // don't sync until unlocked
-      setShowAccount(true);
-    } else {
-      setE2eMode("off");
-      await engine.start();
+      setShowAccount(true); // prompt for the passphrase
+      return "locked";
     }
+    setE2eMode("off");
+    await engine.start();
+    return "off";
   };
 
   useEffect(() => {

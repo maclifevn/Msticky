@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { signInWithGoogle } from "../sync/clientAuth";
-import { clearSession, getEmail, getServerUrl, setServerUrl } from "../sync/config";
+import { clearSession, getEmail, getServerUrl, getToken, setServerUrl } from "../sync/config";
 import { type SyncStatus } from "../sync/syncEngine";
 import type { E2eMode } from "../sync/e2e";
 import { t, useLang, type Lang } from "../lib/i18n";
@@ -11,7 +11,7 @@ interface Props {
   isDark: boolean;
   onEnableEncryption: (passphrase: string) => Promise<void>;
   onUnlock: (passphrase: string) => Promise<void>;
-  onSessionChanged: () => void | Promise<void>;
+  onSessionChanged: () => void | Promise<void> | Promise<E2eMode>;
   onClose: () => void;
 }
 
@@ -25,7 +25,10 @@ export function AccountPanel({
   onSessionChanged,
   onClose,
 }: Props) {
-  const signedIn = status !== "signed-out";
+  // Signed-in is determined by holding a session token, not by the live sync
+  // status: when E2E is on but this device is locked the engine is stopped
+  // (status "signed-out") yet we ARE signed in and must show the unlock UI.
+  const signedIn = !!getToken();
   const [lang] = useLang();
   const [server, setServer] = useState(getServerUrl());
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -52,8 +55,10 @@ export function AccountPanel({
     try {
       setServerUrl(server);
       await signInWithGoogle(setStage);
-      await onSessionChanged();
-      onClose();
+      // Keep the panel open when the account is encrypted but this device is
+      // locked — initSync surfaces the unlock prompt and closing would hide it.
+      const mode = await onSessionChanged();
+      if (mode !== "locked") onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
