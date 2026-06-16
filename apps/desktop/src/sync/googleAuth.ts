@@ -1,4 +1,5 @@
-import { start, onUrl, onInvalidUrl, cancel } from "@fabianlars/tauri-plugin-oauth";
+import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 // Route the worker call through Rust (native HTTP). The webview's own fetch is
 // blocked from the custom `tauri://` origin to remote HTTPS ("Load failed").
@@ -8,15 +9,9 @@ import { GOOGLE_CLIENT_ID, getServerUrl, setSession } from "./config";
 
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const LOGIN_TIMEOUT_MS = 3 * 60 * 1000;
-
-/** Page the browser shows after the redirect; tries to close itself. */
-const DONE_HTML = `<!doctype html><html><head><meta charset="utf-8"><title>Msticky</title>
-<style>body{font-family:-apple-system,system-ui,sans-serif;background:#fef9c3;color:#3f3a16;
-display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
-.card{background:#fff;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 10px 30px rgba(0,0,0,.1)}
-h1{margin:0 0 .25rem;font-size:1.25rem}p{margin:0;opacity:.6;font-size:.9rem}</style></head>
-<body><div class="card"><h1>✓ Signed in to Msticky</h1><p>You can close this tab.</p></div>
-<script>setTimeout(function(){window.close()},800)</script></body></html>`;
+// Emitted by the Rust loopback server (lib.rs) carrying the redirect's
+// path+query, e.g. "/?code=...&state=...".
+const OAUTH_REDIRECT_EVENT = "msticky://oauth-redirect";
 
 function base64url(bytes: Uint8Array): string {
   let s = "";
@@ -40,8 +35,8 @@ async function pkceChallenge(verifier: string): Promise<string> {
 
 /**
  * Run the Google OAuth (Authorization Code + PKCE) flow:
- *  1. spin a loopback server (tauri-plugin-oauth) and open the system browser
- *  2. capture the redirect's `code`
+ *  1. bind our Rust loopback server (oauth_bind) and open the system browser
+ *  2. capture the redirect's `code` via the OAUTH_REDIRECT_EVENT it emits
  *  3. hand `code` + verifier to the worker, which exchanges + verifies it and
  *     returns our session JWT
  * Each Google account maps to its own private notes namespace.
@@ -74,32 +69,27 @@ export async function signInWithGoogle(
     };
   });
 
-  // Extract the authorization code from the loopback redirect URL. Some
-  // platforms route the captured URL through onInvalidUrl instead of onUrl, so
-  // both feed this same handler.
-  const handleRedirect = (raw: string) => {
-    let u: URL;
-    try {
-      u = new URL(raw);
-    } catch {
-      return; // not a URL (onInvalidUrl may pass an error string) — ignore
-    }
-    const err = u.searchParams.get("error");
+  // Extract the authorization code from the loopback redirect path+query.
+  const handleRedirect = (pathAndQuery: string) => {
+    const qi = pathAndQuery.indexOf("?");
+    const params = new URLSearchParams(qi >= 0 ? pathAndQuery.slice(qi + 1) : "");
+    const err = params.get("error");
     if (err) return rejectCode(new Error(err));
-    const c = u.searchParams.get("code");
-    if (!c) return; // not the redirect we care about (e.g. favicon) — ignore
-    if (u.searchParams.get("state") !== state) {
+    const c = params.get("code");
+    if (!c) return; // not the redirect we care about — ignore
+    if (params.get("state") !== state) {
       return rejectCode(new Error("State mismatch"));
     }
     stage("exchanging");
     resolveCode(c);
   };
 
-  // Register BOTH listeners BEFORE start() so we can't miss an early redirect.
-  const unlistenUrl = await onUrl(handleRedirect);
-  const unlistenInvalid = await onInvalidUrl(handleRedirect);
+  // Listen BEFORE binding the server so we can't miss an early redirect.
+  const unlisten = await listen<string>(OAUTH_REDIRECT_EVENT, (e) =>
+    handleRedirect(e.payload),
+  );
 
-  const port = await start({ response: DONE_HTML });
+  const port = await invoke<number>("oauth_bind");
   const redirectUri = `http://127.0.0.1:${port}`;
   const authUrl =
     `${GOOGLE_AUTH_URL}?` +
@@ -155,8 +145,6 @@ export async function signInWithGoogle(
     }
   } finally {
     window.clearTimeout(timer);
-    unlistenUrl();
-    unlistenInvalid();
-    await cancel(port).catch(() => {});
+    unlisten();
   }
 }

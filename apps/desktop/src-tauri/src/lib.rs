@@ -1,4 +1,6 @@
-use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindowBuilder};
+use std::io::{Read, Write};
+use std::net::TcpListener;
+use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 // ── Window helpers ─────────────────────────────────────────────────────────
@@ -100,6 +102,72 @@ fn set_always_on_top_cmd(app: AppHandle, label: String, value: bool) -> Result<(
         w.set_always_on_top(value).map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+// ── Google OAuth loopback ─────────────────────────────────────────────────────
+//
+// We run our own minimal loopback server instead of relying on a plugin that
+// delivers the code via a second browser-side fetch + window.emit — that path
+// was unreliable on Windows (the success page's window.close() raced/aborted
+// the follow-up fetch, so the code never reached the app). Here we read the
+// authorization code straight from the FIRST redirect request line and
+// broadcast it with a global app.emit, which works the same on every platform.
+
+const OAUTH_REDIRECT_EVENT: &str = "msticky://oauth-redirect";
+
+const OAUTH_SUCCESS_HTML: &str = r#"<!doctype html><html><head><meta charset="utf-8"><title>Msticky</title>
+<style>body{font-family:-apple-system,Segoe UI,system-ui,sans-serif;background:#fef9c3;color:#3f3a16;
+display:flex;align-items:center;justify-content:center;height:100vh;margin:0;text-align:center}
+.card{background:#fff;padding:2rem 2.5rem;border-radius:1rem;box-shadow:0 10px 30px rgba(0,0,0,.1)}
+h1{margin:0 0 .25rem;font-size:1.25rem}p{margin:0;opacity:.6;font-size:.9rem}</style></head>
+<body><div class="card"><h1>&#10003; Đã đăng nhập Msticky</h1><p>Bạn có thể đóng tab này và quay lại ứng dụng.</p></div></body></html>"#;
+
+/// Bind an ephemeral loopback port and return it. A background thread serves the
+/// single OAuth redirect: it writes a success page back to the browser and emits
+/// the request's path+query (which carries `code` and `state`) to the frontend.
+#[tauri::command]
+async fn oauth_bind(app: AppHandle) -> Result<u16, String> {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).map_err(|e| e.to_string())?;
+    let port = listener
+        .local_addr()
+        .map_err(|e| e.to_string())?
+        .port();
+
+    std::thread::spawn(move || {
+        for conn in listener.incoming() {
+            let mut stream = match conn {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            let mut buf = [0u8; 8192];
+            let n = stream.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]);
+            // First request line, e.g. "GET /?code=...&state=... HTTP/1.1".
+            let path = req
+                .lines()
+                .next()
+                .and_then(|line| line.split_whitespace().nth(1))
+                .unwrap_or("")
+                .to_string();
+
+            let body = OAUTH_SUCCESS_HTML;
+            let resp = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            let _ = stream.write_all(resp.as_bytes());
+            let _ = stream.flush();
+
+            // Ignore favicon / preflight probes that carry no code.
+            if path.contains("code=") || path.contains("error=") {
+                let _ = app.emit(OAUTH_REDIRECT_EVENT, path);
+                break;
+            }
+        }
+    });
+
+    Ok(port)
 }
 
 // ── OS keychain (caches the E2E key per device) ──────────────────────────────
@@ -220,6 +288,7 @@ pub fn run() {
             open_board,
             set_pinned,
             set_always_on_top_cmd,
+            oauth_bind,
             keychain_set,
             keychain_get,
             keychain_delete
